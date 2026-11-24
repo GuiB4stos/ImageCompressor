@@ -1,0 +1,791 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Compressor de imagem</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+/* Layout: a copper boiler with two gauges and a brass nameplate sits on iron posts above a brass piston; the image lies on an iron anvil; controls and result stack beneath. */
+:root {
+  --bg: #D9DDD5;
+  --fg: #2A241E;
+  --muted: #585146;
+  --panel: #E8EBE4;
+  --btn-lo: #CFD3CA;
+  --line: #6E6759;
+  --ink: #2B2520;
+  --brass-hi: #F0D58A;
+  --brass: #CDA24B;
+  --brass-lo: #8C6A22;
+  --copper-hi: #E8A27A;
+  --copper: #B8693D;
+  --copper-lo: #6F3A1E;
+  --iron-hi: #7A746C;
+  --iron: #47423B;
+  --iron-lo: #2A2622;
+  --rivet: rgba(60, 40, 10, .6);
+  --accent-ink: #2B1E05;
+  --on-brass: #241A08;
+  --ok: #2F7D6E;
+  --err: #A8321F;
+  --steam: rgba(255, 255, 255, .92);
+  --smoke: rgba(52, 46, 40, .5);
+  --drop-hover: #EBDDAE;
+  --dial: #F1EAD2;
+  --dial-ink: #2B2520;
+  --needle: #8E2415;
+  --zone-red: #B5381F;
+  --zone-ok: #2F7D6E;
+  --display: 'Cinzel', 'Trajan Pro', Georgia, 'Times New Roman', serif;
+  --stamp: 'Special Elite', 'Courier New', ui-monospace, monospace;
+  --text: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1A1714;
+    --fg: #EFE7D6;
+    --muted: #B0A692;
+    --panel: #26211C;
+    --btn-lo: #1F1B17;
+    --line: #7C7260;
+    --ink: #0C0A08;
+    --brass-hi: #EBCB78;
+    --brass: #B88B33;
+    --brass-lo: #6A4C14;
+    --copper-hi: #D98C5F;
+    --copper: #A5572D;
+    --copper-lo: #5A2E16;
+    --iron-hi: #8A847B;
+    --iron: #524D46;
+    --iron-lo: #2E2A26;
+    --rivet: rgba(20, 12, 2, .7);
+    --ok: #5BC2AD;
+    --err: #FF8B73;
+    --steam: rgba(255, 255, 255, .72);
+    --smoke: rgba(215, 208, 196, .34);
+    --drop-hover: #3B311A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1A1714;
+  --fg: #EFE7D6;
+  --muted: #B0A692;
+  --panel: #26211C;
+  --btn-lo: #1F1B17;
+  --line: #7C7260;
+  --ink: #0C0A08;
+  --brass-hi: #EBCB78;
+  --brass: #B88B33;
+  --brass-lo: #6A4C14;
+  --copper-hi: #D98C5F;
+  --copper: #A5572D;
+  --copper-lo: #5A2E16;
+  --iron-hi: #8A847B;
+  --iron: #524D46;
+  --iron-lo: #2E2A26;
+  --rivet: rgba(20, 12, 2, .7);
+  --ok: #5BC2AD;
+  --err: #FF8B73;
+  --steam: rgba(255, 255, 255, .72);
+  --smoke: rgba(215, 208, 196, .34);
+  --drop-hover: #3B311A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-block: 28px 44px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 480px; margin: 0 auto; }
+h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(26px, 6.6vw, 34px);
+  line-height: 1.12;
+  letter-spacing: .04em;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+.lede { margin: 0 0 36px; color: var(--muted); max-width: 44ch; }
+
+/* ---------- Machine ---------- */
+.stage { position: relative; padding-top: 72px; }
+
+.post {
+  position: absolute; z-index: 1; top: 100px; bottom: 0; width: 22px;
+  border: 2px solid var(--ink); border-radius: 3px;
+  background: linear-gradient(90deg, var(--iron-lo) 0, var(--iron-hi) 35%, var(--iron) 60%, var(--iron-lo) 100%);
+}
+.post::before {
+  content: ""; position: absolute; inset: 8px 0;
+  background: radial-gradient(circle, var(--brass-hi) 0 1.6px, var(--brass-lo) 2px 3px, transparent 3.5px) center top / 100% 26px repeat-y;
+}
+.post.l { left: 0; }
+.post.r { right: 0; }
+
+.gear { position: absolute; z-index: 2; top: 182px; width: 44px; height: 44px; }
+.gear.l { left: -11px; }
+.gear.r { right: -11px; }
+
+.boiler {
+  --g: 62px;
+  position: relative; z-index: 4; height: 98px; margin: 0 14px;
+  border: 3px solid var(--ink); border-radius: 28px;
+  background: linear-gradient(180deg, var(--copper-hi) 0, var(--copper) 16%, var(--copper) 50%, var(--copper-lo) 100%);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, .2), inset 0 3px 0 rgba(255, 255, 255, .18);
+}
+.boiler::before, .boiler::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 13px;
+  border-inline: 2px solid var(--ink);
+  background:
+    radial-gradient(circle at 50% 50%, var(--rivet) 0 1.8px, transparent 2.4px) center top / 100% 18px repeat-y,
+    linear-gradient(90deg, var(--brass-lo), var(--brass-hi) 40%, var(--brass-lo));
+}
+.boiler::before { left: 36px; }
+.boiler::after { right: 36px; }
+.face {
+  position: relative; z-index: 1; height: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 54px 4px;
+}
+.gw { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: none; }
+.gauge { display: block; width: var(--g); height: var(--g); }
+.cap {
+  font-family: var(--stamp); font-size: 10px; line-height: 1; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--on-brass); padding: 2px 6px 1px; border: 1px solid var(--ink); border-radius: 2px;
+  background: linear-gradient(var(--brass-hi), var(--brass));
+}
+.plaque {
+  flex: 1 1 0; min-width: 0; padding: 7px 8px 6px; text-align: center; color: var(--on-brass);
+  border: 2px solid var(--ink); border-radius: 4px;
+  background:
+    radial-gradient(circle at 7px 7px, var(--rivet) 0 2px, transparent 2.6px),
+    radial-gradient(circle at calc(100% - 7px) 7px, var(--rivet) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 7px calc(100% - 7px), var(--rivet) 0 2px, transparent 2.6px),
+    radial-gradient(circle at calc(100% - 7px) calc(100% - 7px), var(--rivet) 0 2px, transparent 2.6px),
+    linear-gradient(var(--brass-hi), var(--brass) 45%, var(--brass-lo));
+}
+.plq-title { display: block; font-family: var(--display); font-weight: 700; font-size: 10px; line-height: 1.15; letter-spacing: .1em; text-transform: uppercase; text-wrap: balance; }
+.plq-read {
+  display: block; margin-top: 3px; font-family: var(--stamp); font-size: clamp(13px, 3.4vw, 17px); line-height: 1.2;
+  white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums;
+}
+.plq-sub { display: block; font-family: var(--stamp); font-size: 9px; line-height: 1.2; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+
+.stack {
+  position: absolute; top: -44px; right: 84px; width: 24px; height: 52px;
+  border: 2px solid var(--ink); border-radius: 3px 3px 0 0;
+  background: linear-gradient(90deg, var(--iron-lo) 0, var(--iron-hi) 35%, var(--iron) 65%, var(--iron-lo) 100%);
+}
+.stack::before, .stack::after {
+  content: ""; position: absolute; left: -6px; right: -6px; border: 2px solid var(--ink); border-radius: 3px;
+  background: linear-gradient(var(--brass-hi), var(--brass-lo));
+}
+.stack::before { top: -9px; height: 10px; }
+.stack::after { top: 22px; height: 8px; left: -3px; right: -3px; }
+.valve {
+  position: absolute; top: -20px; left: 84px; width: 10px; height: 22px;
+  border: 2px solid var(--ink); background: linear-gradient(90deg, var(--iron-lo), var(--iron-hi) 40%, var(--iron-lo));
+}
+.valve::before {
+  content: ""; position: absolute; top: -8px; left: -8px; right: -8px; height: 9px;
+  border: 2px solid var(--ink); border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(var(--brass-hi), var(--brass-lo));
+}
+
+.press { position: relative; height: 150px; }
+.neck {
+  position: absolute; z-index: 2; top: -8px; left: 50%; transform: translateX(-50%); width: 44px; height: 18px;
+  border: 2px solid var(--ink);
+  background: linear-gradient(90deg, var(--copper-lo), var(--copper-hi) 35%, var(--copper) 60%, var(--copper-lo));
+}
+.cyl {
+  position: absolute; z-index: 3; top: 8px; left: 50%; transform: translateX(-50%); width: 112px; height: 64px;
+  border: 2px solid var(--ink);
+  background: linear-gradient(90deg, var(--brass-lo) 0, var(--brass) 18%, var(--brass-hi) 34%, var(--brass) 52%, var(--brass-lo) 100%);
+}
+.cyl::before, .cyl::after {
+  content: ""; position: absolute; left: -10px; right: -10px; height: 12px;
+  border: 2px solid var(--ink); border-radius: 3px;
+  background:
+    radial-gradient(circle at 50% 50%, var(--rivet) 0 1.6px, transparent 2.2px) 0 0 / 14px 100% round no-repeat,
+    linear-gradient(180deg, var(--brass-hi), var(--brass) 50%, var(--brass-lo));
+}
+.cyl::before { top: 6px; }
+.cyl::after { bottom: 6px; }
+.noz {
+  position: absolute; z-index: 1; bottom: 12px; width: 14px; height: 9px;
+  border: 2px solid var(--ink); background: linear-gradient(var(--iron-hi), var(--iron-lo));
+}
+.noz.l { left: -22px; border-radius: 3px 0 0 3px; }
+.noz.r { right: -22px; border-radius: 0 3px 3px 0; }
+.collar {
+  position: absolute; z-index: 3; top: 72px; left: 50%; transform: translateX(-50%); width: 60px; height: 12px;
+  border: 2px solid var(--ink); border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, var(--iron-lo), var(--iron-hi) 35%, var(--iron) 65%, var(--iron-lo));
+}
+.ram {
+  position: absolute; z-index: 2; top: 84px; left: 50%; transform: translateX(-50%);
+  width: var(--plate-w, 160px);
+  display: flex; flex-direction: column; align-items: center;
+  transition: width .25s ease-out;
+}
+.rod {
+  width: 26px; height: 36px; border: 2px solid var(--ink); border-radius: 2px;
+  background: linear-gradient(90deg, var(--iron-lo) 0, var(--iron-hi) 28%, #CBC6BC 40%, var(--iron-hi) 52%, var(--iron) 78%, var(--iron-lo) 100%);
+}
+.head {
+  width: 100%; height: 30px; border: 2px solid var(--ink); border-radius: 3px;
+  background:
+    radial-gradient(circle at 50% 9px, var(--brass-hi) 0 1.8px, var(--brass-lo) 2.2px 3px, transparent 3.4px) 0 0 / 18px 100% round no-repeat,
+    linear-gradient(180deg, var(--iron-hi) 0 3px, var(--iron) 3px 18px, var(--ink) 18px 19px, var(--brass) 19px 100%);
+}
+
+/* ---------- Bed ---------- */
+.bed {
+  position: relative; z-index: 1; margin: 0 36px; min-height: 232px;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sr { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip-path: inset(50%); }
+.drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; min-height: 232px; padding: 20px 16px; text-align: center; cursor: pointer;
+  border: 2px dashed var(--line); border-radius: 4px; background: var(--panel); color: var(--fg);
+}
+.drop svg { width: 44px; height: 44px; margin-bottom: 4px; }
+.drop strong { font-family: var(--display); font-weight: 700; font-size: 20px; line-height: 1.2; letter-spacing: .04em; }
+.drop .hint { color: var(--muted); font-size: 14px; }
+.drop.over { border-color: var(--brass); background: var(--drop-hover); }
+.sr:focus-visible + .drop { outline: 3px solid var(--fg); outline-offset: 3px; }
+.specimen { width: 100%; display: flex; justify-content: center; align-items: flex-end; }
+.specimen img {
+  display: block; max-width: calc(100% - 32px); max-height: 232px;
+  transform-origin: 50% 100%; will-change: transform;
+}
+.slab {
+  position: relative; height: 34px; border: 3px solid var(--ink); border-radius: 4px;
+  background: linear-gradient(180deg, var(--iron-hi) 0 4px, var(--iron) 4px 60%, var(--iron-lo) 100%);
+}
+.slab::before, .slab::after {
+  content: ""; position: absolute; top: 9px; width: 34px; height: 13px;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 3px, transparent 3px 7px);
+}
+.slab::before { left: 14px; }
+.slab::after { right: 14px; }
+
+.puff { position: absolute; z-index: 6; border-radius: 50%; pointer-events: none; }
+.puff.steam { background: radial-gradient(circle at 40% 40%, var(--steam) 0 35%, transparent 72%); }
+.puff.smoke { background: radial-gradient(circle, var(--smoke) 0 30%, transparent 70%); }
+
+/* ---------- Controls ---------- */
+.actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 28px; }
+.btn {
+  font-family: var(--display); font-weight: 700; font-size: 16px; line-height: 1; letter-spacing: .07em; text-transform: uppercase;
+  padding: 14px 20px 13px; margin-bottom: 3px; border-radius: 4px;
+  border: 2px solid var(--ink); color: var(--fg);
+  background: linear-gradient(180deg, var(--panel), var(--btn-lo));
+  box-shadow: 0 3px 0 var(--ink), inset 0 1px 0 rgba(255, 255, 255, .4);
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 0 var(--ink), inset 0 1px 0 rgba(255, 255, 255, .4); }
+.btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 var(--ink); }
+.btn:focus-visible { outline: 3px solid var(--fg); outline-offset: 4px; }
+.btn.primary {
+  color: var(--accent-ink);
+  background: linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
+}
+.btn:disabled {
+  background: transparent; color: var(--muted); border: 2px dashed var(--line);
+  box-shadow: none; cursor: not-allowed; transform: none;
+}
+
+.result { margin-top: 28px; padding-top: 22px; border-top: 2px solid var(--line); }
+.done { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; font-family: var(--display); font-weight: 700; font-size: 25px; line-height: 1.15; letter-spacing: .03em; }
+.done svg { flex: none; width: 34px; height: 34px; }
+.stats { margin: 0 0 18px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.status { min-height: 1.5em; margin: 14px 0 0; color: var(--muted); font-size: 14px; }
+.status.err { color: var(--err); }
+
+@media (max-width: 440px) {
+  .boiler { --g: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ram { transition: none; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="bezel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" style="stop-color:var(--brass-hi)"/>
+      <stop offset=".55" style="stop-color:var(--brass)"/>
+      <stop offset="1" style="stop-color:var(--brass-lo)"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<main class="wrap">
+  <header>
+    <h1>Compressor de imagem</h1>
+    <p class="lede">Escolha uma imagem para comprimir!</p>
+  </header>
+
+  <section class="machine" id="machine" aria-label="Prensa a vapor">
+    <div class="stage" id="stage">
+      <div class="post l" aria-hidden="true"></div>
+      <div class="post r" aria-hidden="true"></div>
+      <svg class="gear l" viewBox="-22 -22 44 44" aria-hidden="true">
+        <g id="gear-l"><path fill="var(--brass)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round" fill-rule="evenodd"/><circle r="11" fill="none" stroke="var(--ink)" stroke-width="1" opacity=".5"/></g>
+      </svg>
+      <svg class="gear r" viewBox="-22 -22 44 44" aria-hidden="true">
+        <g id="gear-r"><path fill="var(--brass)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round" fill-rule="evenodd"/><circle r="11" fill="none" stroke="var(--ink)" stroke-width="1" opacity=".5"/></g>
+      </svg>
+
+      <div class="boiler" aria-hidden="true">
+        <div class="stack" id="stack"></div>
+        <div class="valve" id="valve"></div>
+        <div class="face">
+          <div class="gw">
+            <svg class="gauge" id="g1" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="38" fill="url(#bezel)" stroke="var(--ink)" stroke-width="2"/>
+              <circle cx="40" cy="40" r="31" fill="var(--dial)" stroke="var(--ink)" stroke-width="1.5"/>
+              <path class="zone" fill="none" stroke-width="3"/>
+              <g class="ticks"></g>
+              <g class="needle" transform="rotate(-120 40 40)"><line x1="40" y1="45" x2="40" y2="14" stroke="var(--needle)" stroke-width="2.2" stroke-linecap="round"/></g>
+              <circle cx="40" cy="40" r="4.5" fill="var(--brass)" stroke="var(--ink)" stroke-width="1.5"/>
+            </svg>
+            <span class="cap">Pressão</span>
+          </div>
+          <div class="plaque">
+            <span class="plq-title">Prensa a vapor Nº 10</span>
+            <output class="plq-read" id="readout">— × —</output>
+            <span class="plq-sub">tamanho em px</span>
+          </div>
+          <div class="gw">
+            <svg class="gauge" id="g2" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="38" fill="url(#bezel)" stroke="var(--ink)" stroke-width="2"/>
+              <circle cx="40" cy="40" r="31" fill="var(--dial)" stroke="var(--ink)" stroke-width="1.5"/>
+              <path class="zone" fill="none" stroke-width="3"/>
+              <g class="ticks"></g>
+              <g class="needle" transform="rotate(-120 40 40)"><line x1="40" y1="45" x2="40" y2="14" stroke="var(--needle)" stroke-width="2.2" stroke-linecap="round"/></g>
+              <circle cx="40" cy="40" r="4.5" fill="var(--brass)" stroke="var(--ink)" stroke-width="1.5"/>
+            </svg>
+            <span class="cap">Compressão</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="press" aria-hidden="true">
+        <div class="neck"></div>
+        <div class="cyl"><span class="noz l" id="noz-l"></span><span class="noz r" id="noz-r"></span></div>
+        <div class="collar"></div>
+        <div class="ram" id="ram">
+          <div class="rod" id="rod"></div>
+          <div class="head" id="head"></div>
+        </div>
+      </div>
+
+      <div class="bed" id="bed">
+        <input class="sr" id="file" type="file" accept="image/*">
+        <label class="drop" id="drop" for="file">
+          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M24 6v26"/><path d="M13 22l11 11 11-11"/><path d="M8 40h32"/>
+          </svg>
+          <strong>Escolha uma imagem</strong>
+          <span class="hint">ou arraste um arquivo para cá</span>
+          <span class="hint">PNG, JPG, WebP ou GIF</span>
+        </label>
+        <div class="specimen" id="specimen" hidden>
+          <img id="img" alt="Prévia da imagem escolhida">
+        </div>
+      </div>
+      <div class="slab" id="slab" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="btn primary" id="press-btn" type="button" disabled>Comprimir</button>
+    <button class="btn" id="swap-btn" type="button" hidden>Trocar imagem</button>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <section class="result" id="result" hidden>
+    <h2 class="done">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="14" fill="url(#bezel)" stroke="var(--ink)" stroke-width="2"/>
+        <path d="M9 16.5l5 5 9-10" fill="none" stroke="#2B2520" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Compressão concluída</span>
+    </h2>
+    <button class="btn primary" id="dl-btn" type="button">Baixar imagem</button>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const machine = $('machine'), stage = $('stage'), bed = $('bed'), drop = $('drop'),
+        input = $('file'), specimen = $('specimen'), img = $('img'), ram = $('ram'),
+        rod = $('rod'), head = $('head'), pressBtn = $('press-btn'), swapBtn = $('swap-btn'),
+        result = $('result'), dlBtn = $('dl-btn'), status = $('status'),
+        readout = $('readout'), stackEl = $('stack'), valveEl = $('valve'),
+        nozL = $('noz-l'), nozR = $('noz-r'), slab = $('slab'),
+        gearL = $('gear-l'), gearR = $('gear-r');
+
+  const ROD0 = 36;      // resting rod length in px
+  const S_END = 0.1;    // final height as a share of the original
+  const PAD = 32;       // plate overhang beyond the image, total
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hasClaude = !!(window.claude && typeof window.claude.use === 'function');
+  const dlReady = hasClaude
+    ? window.claude.use('downloads').catch(() => null)
+    : Promise.resolve(undefined);
+
+  let state = 'idle', url = null, file = null, out = null, meta = null;
+
+  /* ---------- Gauges ---------- */
+  const polar = (r, deg) => {
+    const a = deg * Math.PI / 180;
+    return [40 + r * Math.sin(a), 40 - r * Math.cos(a)];
+  };
+  function buildGauge(svg, zone) {
+    let html = '';
+    const N = 20;
+    for (let i = 0; i <= N; i++) {
+      const deg = -120 + 240 * i / N, major = i % 5 === 0;
+      const a = polar(28, deg), b = polar(major ? 21 : 24.5, deg);
+      html += '<line x1="' + a[0].toFixed(2) + '" y1="' + a[1].toFixed(2) + '" x2="' + b[0].toFixed(2) + '" y2="' + b[1].toFixed(2) +
+              '" stroke="var(--dial-ink)" stroke-width="' + (major ? 1.8 : 1) + '" stroke-linecap="round"/>';
+    }
+    svg.querySelector('.ticks').innerHTML = html;
+    const p1 = polar(26.5, -120 + 240 * zone.from), p2 = polar(26.5, -120 + 240 * zone.to);
+    const z = svg.querySelector('.zone');
+    z.setAttribute('d', 'M' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + 'A26.5 26.5 0 0 1 ' + p2[0].toFixed(2) + ' ' + p2[1].toFixed(2));
+    z.setAttribute('stroke', zone.color);
+  }
+  buildGauge($('g1'), { from: 0.8, to: 1, color: 'var(--zone-red)' });
+  buildGauge($('g2'), { from: 0.85, to: 0.95, color: 'var(--zone-ok)' });
+
+  const mkGauge = (id, v) => ({ el: $(id).querySelector('.needle'), v, vel: 0, target: v, tr: 0.004, seed: Math.random() * 6 });
+  const g1 = mkGauge('g1', 0.14), g2 = mkGauge('g2', 0);
+  g1.target = 0.14;
+
+  let lastAngle = new Map();
+  function drawNeedle(g, now) {
+    if (reduce) { g.v = g.target; }
+    else {
+      g.vel += (g.target - g.v) * 0.07;
+      g.vel *= 0.8;
+      g.v += g.vel;
+    }
+    const trem = reduce ? 0 : Math.sin(now / 55 + g.seed) * g.tr;
+    const val = Math.min(1, Math.max(0, g.v + trem));
+    const angle = (-120 + 240 * val).toFixed(1);
+    if (lastAngle.get(g) !== angle) {
+      lastAngle.set(g, angle);
+      g.el.setAttribute('transform', 'rotate(' + angle + ' 40 40)');
+    }
+  }
+  function loop(now) {
+    drawNeedle(g1, now);
+    drawNeedle(g2, now);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  /* ---------- Gears ---------- */
+  function gearPath(teeth, ro, ri) {
+    const w = 2 * Math.PI / teeth;
+    let d = '';
+    for (let i = 0; i < teeth; i++) {
+      const pts = [[ri, 0], [ro, 0.2], [ro, 0.5], [ri, 0.7]].map((q) => {
+        const t = i * w + q[1] * w;
+        return (q[0] * Math.sin(t)).toFixed(2) + ' ' + (-q[0] * Math.cos(t)).toFixed(2);
+      });
+      d += (i ? 'L' : 'M') + pts[0] + 'L' + pts[1] + 'L' + pts[2] + 'L' + pts[3];
+    }
+    return d + 'ZM6 0A6 6 0 1 0 -6 0A6 6 0 1 0 6 0Z';
+  }
+  const gd = gearPath(12, 20, 15.5);
+  gearL.querySelector('path').setAttribute('d', gd);
+  gearR.querySelector('path').setAttribute('d', gd);
+  const spinGears = (e) => {
+    gearL.setAttribute('transform', 'rotate(' + (e * 1.5).toFixed(1) + ')');
+    gearR.setAttribute('transform', 'rotate(' + (-e * 1.5 + 15).toFixed(1) + ')');
+  };
+  spinGears(0);
+
+  /* ---------- Steam and smoke ---------- */
+  const at = (el, fx, fy) => {
+    const r = el.getBoundingClientRect(), s = stage.getBoundingClientRect();
+    return { x: r.left + r.width * fx - s.left, y: r.top + r.height * fy - s.top };
+  };
+  function puff(o) {
+    if (reduce || document.hidden) return;
+    if (stage.querySelectorAll('.puff').length > 70) return;
+    const size = o.size || 20;
+    const p = document.createElement('i');
+    p.className = 'puff ' + (o.kind || 'steam');
+    p.style.cssText = 'left:' + (o.x - size / 2) + 'px;top:' + (o.y - size / 2) + 'px;width:' + size + 'px;height:' + size + 'px';
+    stage.appendChild(p);
+    const a = p.animate([
+      { transform: 'translate(0,0) scale(.4)', opacity: 0 },
+      { opacity: 0.85, offset: 0.2 },
+      { transform: 'translate(' + (o.dx || 0) + 'px,' + (o.dy || -50) + 'px) scale(' + (o.grow || 2.2) + ')', opacity: 0 }
+    ], { duration: o.life || 1400, delay: o.delay || 0, easing: 'ease-out', fill: 'both' });
+    a.onfinish = () => p.remove();
+  }
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function chimney(busy) {
+    const p = at(stackEl, 0.5, 0);
+    puff({ x: p.x, y: p.y, size: busy ? 26 : 16, dx: rnd(6, busy ? 34 : 18), dy: busy ? -84 : -58, life: busy ? 1700 : 2400, kind: 'smoke', grow: busy ? 2.6 : 2 });
+  }
+  function valveBurst() {
+    const p = at(valveEl, 0.5, 0);
+    for (let i = 0; i < 4; i++) puff({ x: p.x, y: p.y - 4, size: 14, dx: -rnd(8, 26), dy: -rnd(26, 46), life: 900, delay: i * 70, grow: 2 });
+  }
+  function baseJets() {
+    [-1, 1].forEach((side) => {
+      const p = at(slab, side < 0 ? 0.09 : 0.91, 0);
+      for (let i = 0; i < 4; i++) puff({ x: p.x, y: p.y, size: rnd(16, 26), dx: side * rnd(18, 58), dy: -rnd(12, 40), life: rnd(800, 1200), delay: i * 45, grow: 2.2 });
+    });
+  }
+  function exhaust() {
+    [[nozL, -1], [nozR, 1]].forEach(([el, side]) => {
+      const p = at(el, 0.5, 0.5);
+      for (let i = 0; i < 5; i++) puff({ x: p.x, y: p.y, size: rnd(14, 24), dx: side * rnd(24, 70), dy: -rnd(6, 28), life: rnd(900, 1400), delay: i * 60, grow: 2.4 });
+    });
+    chimney(true); chimney(true);
+  }
+  (function ambient() {
+    if (!reduce && !document.hidden) chimney(state === 'pressing');
+    setTimeout(ambient, state === 'pressing' ? 170 : 900);
+  })();
+
+  /* ---------- UI state ---------- */
+  const setState = (s) => {
+    state = s;
+    pressBtn.disabled = s !== 'ready';
+    swapBtn.hidden = s === 'idle';
+    swapBtn.disabled = s === 'pressing';
+  };
+  const note = (msg, isErr) => {
+    status.textContent = msg || '';
+    status.classList.toggle('err', !!isErr);
+  };
+  const fmtBytes = (n) => {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toLocaleString('pt-BR', { maximumFractionDigits: n < 10240 ? 1 : 0 }) + ' KB';
+    return (n / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' MB';
+  };
+  const ease = (k) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+  const setReadout = (p) => {
+    if (!meta) { readout.textContent = '— × —'; return; }
+    const h = Math.max(1, Math.round(meta.h * (1 - (1 - S_END) * p)));
+    readout.textContent = meta.w + ' × ' + h;
+  };
+
+  function fitPlate() {
+    requestAnimationFrame(() => {
+      const w = img.offsetWidth, max = bed.offsetWidth;
+      ram.style.setProperty('--plate-w', Math.min(w + PAD, max) + 'px');
+    });
+  }
+  window.addEventListener('resize', () => { if (state === 'ready' || state === 'done') fitPlate(); });
+
+  function resetVisuals() {
+    img.style.transform = '';
+    rod.style.height = ROD0 + 'px';
+    result.hidden = true;
+    spinGears(0);
+    g1.target = 0.14; g2.target = 0; g1.tr = 0.004;
+    out = null;
+  }
+
+  function loadFile(f) {
+    if (!f || state === 'pressing') return;
+    if (!f.type || f.type.indexOf('image/') !== 0) {
+      note('Esse arquivo não é uma imagem. Escolha um PNG, JPG, WebP ou GIF.', true);
+      return;
+    }
+    note('');
+    const next = URL.createObjectURL(f);
+    const probe = new Image();
+    probe.onload = () => {
+      if (url) URL.revokeObjectURL(url);
+      url = next; file = f;
+      resetVisuals();
+      img.onload = () => {
+        meta = { w: img.naturalWidth || img.offsetWidth, h: img.naturalHeight || img.offsetHeight };
+        setReadout(0);
+        g1.target = 0.2;
+        fitPlate();
+        setState('ready');
+      };
+      img.src = next;
+      drop.hidden = true;
+      specimen.hidden = false;
+      input.tabIndex = -1;
+    };
+    probe.onerror = () => {
+      URL.revokeObjectURL(next);
+      note('Não foi possível abrir essa imagem. Tente outro arquivo.', true);
+    };
+    probe.src = next;
+  }
+
+  input.addEventListener('change', () => { loadFile(input.files && input.files[0]); input.value = ''; });
+  swapBtn.addEventListener('click', () => input.click());
+  ['dragenter', 'dragover'].forEach((ev) => bed.addEventListener(ev, (e) => {
+    e.preventDefault();
+    if (state !== 'pressing') drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach((ev) => bed.addEventListener(ev, (e) => {
+    e.preventDefault();
+    drop.classList.remove('over');
+  }));
+  bed.addEventListener('drop', (e) => loadFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]));
+
+  /* ---------- Compression ---------- */
+  function makeBlob() {
+    return new Promise((resolve, reject) => {
+      let w = img.naturalWidth || img.offsetWidth, h = img.naturalHeight || img.offsetHeight;
+      const k = Math.min(1, 8192 / Math.max(w, h));
+      w = Math.max(1, Math.round(w * k));
+      h = Math.max(1, Math.round(h * k));
+      const th = Math.max(1, Math.round(h * S_END));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = th;
+      const ctx = c.getContext('2d');
+      if (!ctx) return reject(new Error('canvas'));
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, w, th);
+      c.toBlob((b) => (b ? resolve({ blob: b, w, h: th }) : reject(new Error('blob'))), 'image/png');
+    });
+  }
+
+  function shake() {
+    if (reduce) return;
+    stage.animate([
+      { transform: 'translate(0,0)' }, { transform: 'translate(0,5px)' },
+      { transform: 'translate(0,-3px)' }, { transform: 'translate(0,2px)' }, { transform: 'translate(0,0)' }
+    ], { duration: 280, easing: 'ease-out' });
+  }
+
+  function runPress(gap, squash, onImpact, onRelease) {
+    const k = reduce ? 0.35 : 1;
+    const T1 = Math.min(700, 360 + gap * 2) * k, T2 = 650 * k, T3 = 420 * k, T4 = 800 * k;
+    return new Promise((res) => {
+      const t0 = performance.now();
+      let hit = false, rel = false;
+      const apply = (e, p) => {
+        rod.style.height = (ROD0 + e) + 'px';
+        img.style.transform = 'scale(' + (1 + 0.035 * p) + ',' + (1 - (1 - S_END) * p) + ')';
+        spinGears(e);
+        setReadout(p);
+        g2.target = (1 - S_END) * p;
+      };
+      const step = (now) => {
+        const t = Math.max(0, now - t0);
+        let e, p;
+        if (t < T1) {
+          const q = t / T1; e = gap * q * q; p = 0;
+          g1.target = 0.2 + 0.35 * q;
+        } else if (t < T1 + T2) {
+          if (!hit) { hit = true; onImpact(); }
+          p = ease((t - T1) / T2); e = gap + squash * p;
+          g1.target = 0.55 + 0.45 * p;
+        } else if (t < T1 + T2 + T3) {
+          e = gap + squash; p = 1;
+          g1.target = 1; g1.tr = 0.014;
+        } else if (t < T1 + T2 + T3 + T4) {
+          if (!rel) { rel = true; g1.target = 0.14; g1.tr = 0.004; onRelease(); }
+          e = (gap + squash) * (1 - ease((t - T1 - T2 - T3) / T4)); p = 1;
+        } else {
+          apply(0, 1); res(); return;
+        }
+        apply(e, p);
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  async function press() {
+    if (state !== 'ready') return;
+    setState('pressing');
+    note('');
+    result.hidden = true;
+    try {
+      out = await makeBlob();
+    } catch (e) {
+      note('Não foi possível preparar essa imagem para a prensa.', true);
+      setState('ready');
+      return;
+    }
+    const base = (file.name || 'imagem').replace(/\.[^.]+$/, '') || 'imagem';
+    out.name = base + '-comprimida.png';
+    const headRect = head.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+    const gap = Math.max(0, imgRect.top - headRect.bottom);
+    const squash = imgRect.height * (1 - S_END);
+    valveBurst();
+    await runPress(gap, squash,
+      () => { shake(); baseJets(); },
+      async () => {
+        exhaust();
+        const dl = await dlReady;
+        if (hasClaude && !dl) {
+          dlBtn.hidden = true;
+          note('O download não está disponível nesta visualização.');
+        } else {
+          dlBtn.hidden = false;
+        }
+        result.hidden = false;
+        if (!reduce) result.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
+      });
+    setState('done');
+  }
+
+  async function download() {
+    if (!out) return;
+    note('');
+    try {
+      const dl = await dlReady;
+      if (dl) {
+        await dl.save({ filename: out.name, data: out.blob });
+        note('Imagem salva.');
+      } else if (!hasClaude) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(out.blob);
+        a.download = out.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'declined') return;
+      if (code === 'too_large') note('O arquivo é grande demais para salvar aqui.', true);
+      else if (code === 'rate_limited') note('Aguarde um instante e tente de novo.', true);
+      else note('Não foi possível salvar o arquivo. Tente de novo.', true);
+    }
+  }
+
+  pressBtn.addEventListener('click', press);
+  dlBtn.addEventListener('click', download);
+  setState('idle');
+})();
+</script>
+
+</body></html>
